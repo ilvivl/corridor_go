@@ -1,0 +1,42 @@
+"""Игровое ядро «Коридор» (Quoridor). Чистая логика, без Flask и БД."""
+from .board import SIZE, WALL_SLOTS, Wall, has_path, wall_conflicts
+from .rules import (
+    GOAL_ROW,
+    INITIAL_WALLS,
+    START,
+    Action,
+    GameState,
+    IllegalMove,
+    MovePawn,
+    PlaceWall,
+    action_from_json,
+    action_to_json,
+    apply,
+    is_legal,
+    legal_moves,
+    pawn_destinations,
+    replay,
+)
+
+__all__ = [
+    "GameState",
+    "Action",
+    "MovePawn",
+    "PlaceWall",
+    "IllegalMove",
+    "apply",
+    "legal_moves",
+    "is_legal",
+    "replay",
+    "pawn_destinations",
+    "action_from_json",
+    "action_to_json",
+    "Wall",
+    "SIZE",
+    "WALL_SLOTS",
+    "has_path",
+    "wall_conflicts",
+    "GOAL_ROW",
+    "START",
+    "INITIAL_WALLS",
+]
