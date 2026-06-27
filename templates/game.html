@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Коридор — партия{% endblock %}
+{% block content %}
+  {% if full %}
+    <p class="error">Партия заполнена.</p>
+    <p><a href="{{ url_for('index') }}">На главную</a></p>
+  {% else %}
+    {% set status_ru = {
+      'waiting': 'ожидание соперника',
+      'active': 'идёт игра',
+      'finished': 'партия завершена',
+      'abandoned': 'партия брошена',
+    } %}
+
+    <p class="me">Вы — игрок {{ my_side }}.</p>
+
+    <section class="state">
+      <h2>Состояние</h2>
+      <ul>
+        <li>Статус: {{ status_ru.get(view.status, view.status) }}</li>
+        {% if view.winner %}
+          <li><strong>Победитель: игрок {{ view.winner }}</strong></li>
+        {% else %}
+          <li>Ход игрока: {{ view.turn }}{% if view.turn == my_side %} (ваш){% endif %}</li>
+        {% endif %}
+        <li>Полуходов сыграно (ply): {{ view.ply }}</li>
+        <li>Фишка игрока 1: {{ view.pawns['1'] }} · стен осталось: {{ view.walls_left['1'] }}</li>
+        <li>Фишка игрока 2: {{ view.pawns['2'] }} · стен осталось: {{ view.walls_left['2'] }}</li>
+        <li>Стен на доске: {{ view.walls | length }}</li>
+      </ul>
+    </section>
+
+    <section class="invite">
+      <h2>Пригласить соперника</h2>
+      <p>Пришлите эту ссылку второму игроку:</p>
+      <input id="invite" type="text" readonly value="{{ invite_url }}" size="48">
+      <button type="button" onclick="
+        const i = document.getElementById('invite');
+        i.select();
+        navigator.clipboard && navigator.clipboard.writeText(i.value);
+        this.textContent = 'Скопировано';
+      ">Копировать</button>
+    </section>
+  {% endif %}
+{% endblock %}

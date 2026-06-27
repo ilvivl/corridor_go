@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Коридор{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header><a href="{{ url_for('index') }}"><h1>Коридор</h1></a></header>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

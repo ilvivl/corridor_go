@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}Коридор — новая игра{% endblock %}
+{% block content %}
+  <p>Онлайн-«Коридор» на двоих. Создайте партию и пришлите сопернику ссылку.</p>
+  <form method="post" action="{{ url_for('create') }}">
+    <button type="submit">Создать игру</button>
+  </form>
+{% endblock %}

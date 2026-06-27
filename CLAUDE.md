@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Current state
 
-**Этап 1 (`game/` ядро) реализован и оттестирован** (39 тестов зелёные). **Этап 2 (слой БД) реализован**: Postgres 16 в Docker (`docker-compose.yml`), модели `server/models.py` (`Game`, `Move`) на SQLAlchemy 2.0, миграции Alembic (`migrations/`, head применён), смоук `scripts/smoke_db.py` зелёный. Конфиг — `.env` (gitignored, шаблон `.env.example`). `docs/PLAN.md` — источник истины по архитектуре и этапам. `docs/RULES.md` — зафиксированные правила игры (геометрия, ходы, прыжки, стены, BFS) — читать при любой работе с `game/`.
+**Этап 1 (`game/` ядро) реализован и оттестирован** (39 тестов зелёные). **Этап 2 (слой БД) реализован**: Postgres 16 в Docker (`docker-compose.yml`), модели `server/models.py` (`Game`, `Move`) на SQLAlchemy 2.0, миграции Alembic (`migrations/`, head применён), смоук `scripts/smoke_db.py` зелёный. **Этап 3 (HTTP-скелет) реализован**: фабрика `server/app.py` (`create_app`), комнаты/токены `server/rooms.py` (`create_game`/`resolve_side`/`public_view`), точка входа `app.py` (`python app.py`), шаблоны `templates/` (`base`/`index`/`game`), `static/style.css`. Идентификация — `player_token` в подписанной сессии Flask (плоские ключи `{str(game_id): str(token)}`). Тесты `tests/test_http.py` + смоук `scripts/smoke_http.py` зелёные (всего 46 тестов). Ходы (realtime) и Canvas — этапы 4–5, ещё не сделаны. Конфиг — `.env` (gitignored, шаблон `.env.example`). `docs/PLAN.md` — источник истины по архитектуре и этапам. `docs/RULES.md` — зафиксированные правила игры (геометрия, ходы, прыжки, стены, BFS) — читать при любой работе с `game/`.
 
 Communication with the user is in **Russian**.
 
@@ -21,9 +21,10 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-There is no run/test command yet — the app code does not exist. When added per the plan:
-- Local run: `python app.py` (Flask-SocketIO dev server), Postgres in Docker.
-- Tests: `pytest` (the `game/` core must be fully unit-tested, independent of web/DB).
+Run/test (Postgres must be up: `docker compose up -d`, миграции на head):
+- Local run: `python app.py` (Flask dev server on `:5000`; на этапе 5 переедет на Flask-SocketIO).
+- Tests: `pytest` (ядро `game/` юнит-тестировано независимо от web/DB; HTTP-тесты требуют поднятого Postgres).
+- Смоук-скрипты: `python scripts/smoke_db.py`, `python scripts/smoke_http.py` (`--keep` оставит партию в БД).
 
 ## Planned architecture (from docs/PLAN.md)
 

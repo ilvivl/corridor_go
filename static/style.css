@@ -1,0 +1,20 @@
+/* Минимальное оформление этапа 3 (текстовый срез). Canvas — этап 4. */
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  max-width: 42rem;
+  margin: 2rem auto;
+  padding: 0 1rem;
+  line-height: 1.5;
+  color: #1a1a1a;
+}
+header a { text-decoration: none; color: inherit; }
+h1 { margin: 0 0 1rem; }
+button {
+  font-size: 1rem;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+}
+section { margin-top: 1.5rem; }
+.me { font-weight: 600; }
+.error { color: #b00020; font-weight: 600; }
+input#invite { font-family: monospace; padding: 0.3rem; }
