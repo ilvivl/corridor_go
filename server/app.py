@@ -1,8 +1,9 @@
 """HTTP-слой «Коридор» (этап 3): фабрика Flask + роуты.
 
 Тонкий вертикальный срез: создать партию → войти по ссылке-приглашению →
-получить сторону (токен в подписанной сессии) → увидеть текстовое состояние.
-Ходов (realtime, этап 5) и Canvas (этап 4) здесь нет.
+получить сторону (токен в подписанной сессии) → увидеть доску. Состояние и
+подсказки ходов уходят на клиент инлайн-JSON'ом (``client_state``), Canvas рисует
+их (этап 4). Отправки ходов (realtime, этап 5) здесь ещё нет.
 
 Сервер — источник истины: страница доски всегда рендерится из состояния в БД
 через ``rooms.public_view`` (без токенов).
@@ -73,12 +74,19 @@ def create_app(config: dict | None = None) -> Flask:
             return render_template("game.html", full=True), 403
 
         invite_url = url_for("game_page", game_id=game.id, _external=True)
+        view = rooms.public_view(game)  # без токенов, источник истины для рендера
+        client_state = {
+            "view": view,                        # side-agnostic состояние доски
+            "hints": rooms.legal_hints(game, side),  # знает сторону, без токенов
+            "my_side": side,                     # 1|2 — ориентация доски на клиенте
+        }
         return render_template(
             "game.html",
-            view=rooms.public_view(game),
+            view=view,                # для HUD/noscript-фоллбэка в Jinja
             my_side=side,
             game_id=game.id,
             invite_url=invite_url,
+            client_state=client_state,
         )
 
     return app

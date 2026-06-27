@@ -14,32 +14,72 @@
 
     <p class="me">Вы — игрок {{ my_side }}.</p>
 
-    <section class="state">
-      <h2>Состояние</h2>
-      <ul>
-        <li>Статус: {{ status_ru.get(view.status, view.status) }}</li>
+    {# HUD: статичный фоллбэк на Jinja; canvas рисует JS поверх. #}
+    <div class="hud">
+      <div class="player-badge side-1
+                  {% if view.turn == 1 and not view.winner %}turn-active{% endif %}">
+        <span class="dot dot-1"></span>
+        <span class="name">Игрок 1{% if my_side == 1 %} (вы){% endif %}</span>
+        <span class="walls">🧱 {{ view.walls_left['1'] }}</span>
+      </div>
+      <div class="turn-indicator">
         {% if view.winner %}
-          <li><strong>Победитель: игрок {{ view.winner }}</strong></li>
+          🏆 Победил игрок {{ view.winner }}
         {% else %}
-          <li>Ход игрока: {{ view.turn }}{% if view.turn == my_side %} (ваш){% endif %}</li>
+          Ход игрока {{ view.turn }}
         {% endif %}
-        <li>Полуходов сыграно (ply): {{ view.ply }}</li>
-        <li>Фишка игрока 1: {{ view.pawns['1'] }} · стен осталось: {{ view.walls_left['1'] }}</li>
-        <li>Фишка игрока 2: {{ view.pawns['2'] }} · стен осталось: {{ view.walls_left['2'] }}</li>
-        <li>Стен на доске: {{ view.walls | length }}</li>
-      </ul>
-    </section>
+      </div>
+      <div class="player-badge side-2
+                  {% if view.turn == 2 and not view.winner %}turn-active{% endif %}">
+        <span class="walls">🧱 {{ view.walls_left['2'] }}</span>
+        <span class="name">Игрок 2{% if my_side == 2 %} (вы){% endif %}</span>
+        <span class="dot dot-2"></span>
+      </div>
+    </div>
 
-    <section class="invite">
-      <h2>Пригласить соперника</h2>
-      <p>Пришлите эту ссылку второму игроку:</p>
-      <input id="invite" type="text" readonly value="{{ invite_url }}" size="48">
-      <button type="button" onclick="
-        const i = document.getElementById('invite');
-        i.select();
-        navigator.clipboard && navigator.clipboard.writeText(i.value);
-        this.textContent = 'Скопировано';
-      ">Копировать</button>
-    </section>
+    <p class="status">{{ status_ru.get(view.status, view.status) }}</p>
+    {% if view.winner %}
+      <p class="winner-banner">Победил игрок {{ view.winner }}!</p>
+    {% endif %}
+
+    <div class="board-wrap">
+      <canvas id="board"></canvas>
+    </div>
+
+    {% if view.status == 'waiting' %}
+      <section class="invite">
+        <h2>Пригласить соперника</h2>
+        <p>Пришлите эту ссылку второму игроку:</p>
+        <input id="invite" type="text" readonly value="{{ invite_url }}" size="48">
+        <button type="button" onclick="
+          const i = document.getElementById('invite');
+          i.select();
+          navigator.clipboard && navigator.clipboard.writeText(i.value);
+          this.textContent = 'Скопировано';
+        ">Копировать</button>
+      </section>
+    {% endif %}
+
+    {# Доставка состояния на клиент — единая инлайн-точка (шов под этап 5). #}
+    <script type="application/json" id="game-data">{{ client_state | tojson }}</script>
+    <script type="module" src="{{ url_for('static', filename='board.js') }}"></script>
+
+    <noscript>
+      <section class="state">
+        <h2>Состояние</h2>
+        <ul>
+          <li>Статус: {{ status_ru.get(view.status, view.status) }}</li>
+          {% if view.winner %}
+            <li><strong>Победитель: игрок {{ view.winner }}</strong></li>
+          {% else %}
+            <li>Ход игрока: {{ view.turn }}{% if view.turn == my_side %} (ваш){% endif %}</li>
+          {% endif %}
+          <li>Полуходов сыграно (ply): {{ view.ply }}</li>
+          <li>Фишка игрока 1: {{ view.pawns['1'] }} · стен осталось: {{ view.walls_left['1'] }}</li>
+          <li>Фишка игрока 2: {{ view.pawns['2'] }} · стен осталось: {{ view.walls_left['2'] }}</li>
+          <li>Стен на доске: {{ view.walls | length }}</li>
+        </ul>
+      </section>
+    </noscript>
   {% endif %}
 {% endblock %}

@@ -1,4 +1,15 @@
-/* Минимальное оформление этапа 3 (текстовый срез). Canvas — этап 4. */
+/* Палитра Blueprint (flat, без теней) — единый источник для HUD и canvas.
+   board.js читает эти переменные через getComputedStyle(documentElement). */
+:root {
+  --bp-bg:    #F4F6F8; /* фон доски   */
+  --bp-cell:  #D9E0E6; /* клетки      */
+  --bp-line:  #6B7B8C; /* линии       */
+  --bp-wall:  #34485C; /* стены       */
+  --bp-p1:    #1E5FA8; /* пешка 1     */
+  --bp-p2:    #E0A12E; /* пешка 2     */
+  --bp-legal: #2E9E5B; /* легальный ход/ghost */
+}
+
 body {
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
   max-width: 42rem;
@@ -18,3 +29,64 @@ section { margin-top: 1.5rem; }
 .me { font-weight: 600; }
 .error { color: #b00020; font-weight: 600; }
 input#invite { font-family: monospace; padding: 0.3rem; }
+
+/* --- HUD партии: стены P1 · чей ход · стены P2 --- */
+.hud {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 1rem 0 0.5rem;
+}
+.player-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.6rem;
+  border: 2px solid transparent;
+  border-radius: 0.5rem;
+}
+.player-badge.turn-active {
+  border-color: var(--bp-legal);
+  background: rgba(46, 158, 91, 0.10);
+}
+.player-badge .name { font-weight: 600; }
+.player-badge .walls { font-variant-numeric: tabular-nums; }
+.dot {
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 50%;
+  display: inline-block;
+}
+.dot-1 { background: var(--bp-p1); }
+.dot-2 { background: var(--bp-p2); }
+.turn-indicator {
+  text-align: center;
+  font-weight: 600;
+  color: var(--bp-wall);
+}
+
+.status { color: var(--bp-line); margin: 0.25rem 0; }
+.winner-banner {
+  font-weight: 700;
+  color: var(--bp-legal);
+  font-size: 1.1rem;
+}
+
+/* --- доска --- */
+.board-wrap {
+  display: flex;
+  justify-content: center;
+  margin: 0.5rem 0 1rem;
+}
+canvas#board {
+  touch-action: none;     /* не скроллить страницу при тапе по доске */
+  border-radius: 0.5rem;
+  cursor: pointer;
+}
+
+/* мобильный: HUD не ломается на узком экране */
+@media (max-width: 480px) {
+  .hud { flex-wrap: wrap; gap: 0.5rem; }
+  .turn-indicator { order: -1; flex-basis: 100%; }
+}

@@ -4,6 +4,7 @@
 Прямые проверки БД идут через ``SessionLocal`` (в conftest он привязан к тому же
 внешнему соединению, что и роуты, — видит сделанные ими коммиты).
 """
+import json
 import uuid
 
 from server.db import SessionLocal
@@ -17,6 +18,14 @@ def _create_game(client) -> str:
     location = resp.headers["Location"]
     assert "/game/" in location
     return location.rsplit("/", 1)[-1]
+
+
+def _game_data(html: str) -> dict:
+    """Вытащить инлайн-JSON из <script id="game-data"> страницы партии."""
+    marker = 'id="game-data">'
+    start = html.index(marker) + len(marker)
+    end = html.index("</script>", start)
+    return json.loads(html[start:end])
 
 
 def test_index_ok(client):
@@ -86,6 +95,27 @@ def test_tokens_never_leak_into_html(client):
         html = viewer.get(f"/game/{game_id}").get_data(as_text=True)
         for token in tokens:
             assert token not in html
+
+
+def test_game_page_embeds_client_state(client):
+    """Страница встраивает <script id="game-data"> с ключами view/hints/my_side."""
+    game_id = _create_game(client)
+    data = _game_data(client.get(f"/game/{game_id}").get_data(as_text=True))
+
+    assert set(data) == {"view", "hints", "my_side"}
+    assert data["my_side"] == 1
+    assert data["hints"]["your_turn"] is True
+    assert any(m["type"] == "move" for m in data["hints"]["moves"])
+
+
+def test_opponent_off_turn_gets_no_hints(client):
+    """Контракт изоляции: сопернику не на ходу ходы не присылаются (P2 на старте)."""
+    game_id = _create_game(client)
+    second = client.application.test_client()
+    data = _game_data(second.get(f"/game/{game_id}").get_data(as_text=True))
+
+    assert data["my_side"] == 2
+    assert data["hints"]["moves"] == []
 
 
 def test_unknown_game_is_404(client):

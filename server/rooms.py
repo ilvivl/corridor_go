@@ -12,7 +12,7 @@ import uuid
 
 from sqlalchemy.orm import Session
 
-from game import GameState
+from game import GameState, action_to_json, legal_moves
 from server.models import Game
 
 
@@ -72,4 +72,25 @@ def public_view(game: Game) -> dict:
         "status": game.status,
         "ply": game.ply,
         "winner": game.winner,
+    }
+
+
+def legal_hints(game: Game, side: int) -> dict:
+    """Подсказки легальных ходов для конкретной ``side`` (этап 4: рендер/хит-тест).
+
+    В отличие от ``public_view`` функция знает сторону, но токенов не раскрывает.
+    Сопернику не на ходу и в завершённой партии отдаём пустой список — клиент не
+    должен видеть варианты, которые сейчас недоступны (контракт изоляции).
+
+    Формат элементов ``moves`` совпадает с ``game.action_to_json``:
+    ``{"type":"move","to":[c,r]}`` и ``{"type":"wall","c":..,"r":..,"o":"H|V"}``.
+    Нагрузка (на старте ~3 хода + до 128 кандидатов-стен с BFS) — единицы мс,
+    пересчёт на каждый рендер страницы допустим.
+    """
+    state = GameState.from_json(game.state)
+    if state.winner is not None or side != state.turn:
+        return {"your_turn": False, "moves": []}
+    return {
+        "your_turn": True,
+        "moves": [action_to_json(a) for a in legal_moves(state)],
     }
