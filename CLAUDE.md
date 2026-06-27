@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Current state
 
-**Этап 1 (`game/` ядро) реализован и оттестирован** (39 тестов зелёные). **Этап 2 (слой БД) реализован**: Postgres 16 в Docker (`docker-compose.yml`), модели `server/models.py` (`Game`, `Move`) на SQLAlchemy 2.0, миграции Alembic (`migrations/`, head применён), смоук `scripts/smoke_db.py` зелёный. **Этап 3 (HTTP-скелет) реализован**: фабрика `server/app.py` (`create_app`), комнаты/токены `server/rooms.py` (`create_game`/`resolve_side`/`public_view`), точка входа `app.py` (`python app.py`), шаблоны `templates/` (`base`/`index`/`game`), `static/style.css`. Идентификация — `player_token` в подписанной сессии Flask (плоские ключи `{str(game_id): str(token)}`). Тесты `tests/test_http.py` + смоук `scripts/smoke_http.py` зелёные (всего 46 тестов). Ходы (realtime) и Canvas — этапы 4–5, ещё не сделаны. Конфиг — `.env` (gitignored, шаблон `.env.example`). `docs/PLAN.md` — источник истины по архитектуре и этапам. `docs/RULES.md` — зафиксированные правила игры (геометрия, ходы, прыжки, стены, BFS) — читать при любой работе с `game/`.
+**Этап 1 (`game/` ядро) реализован и оттестирован** (39 тестов зелёные). **Этап 2 (слой БД) реализован**: Postgres 16 в Docker (`docker-compose.yml`), модели `server/models.py` (`Game`, `Move`) на SQLAlchemy 2.0, миграции Alembic (`migrations/`, head применён), смоук `scripts/smoke_db.py` зелёный. **Этап 3 (HTTP-скелет) реализован**: фабрика `server/app.py` (`create_app`), комнаты/токены `server/rooms.py` (`create_game`/`resolve_side`/`public_view`), точка входа `app.py` (`python app.py`), шаблоны `templates/` (`base`/`index`/`game`), `static/style.css`. Идентификация — `player_token` в подписанной сессии Flask (плоские ключи `{str(game_id): str(token)}`). Тесты `tests/test_http.py` + смоук `scripts/smoke_http.py` зелёные (всего 46 тестов). Ходы (realtime) и Canvas — этапы 4–5, ещё не сделаны. Конфиг — `.env` (gitignored, шаблон `.env.example`). Архитектура/этапы и правила игры зафиксированы в auto-memory: `corridor-go-plan` (источник истины по архитектуре и этапам) и `corridor-go-rules` (геометрия, ходы, прыжки, стены, BFS) — читать при любой работе с `game/`. (Папка `docs/` удалена из репозитория.)
 
 Communication with the user is in **Russian**.
 
@@ -26,14 +26,14 @@ Run/test (Postgres must be up: `docker compose up -d`, миграции на hea
 - Tests: `pytest` (ядро `game/` юнит-тестировано независимо от web/DB; HTTP-тесты требуют поднятого Postgres).
 - Смоук-скрипты: `python scripts/smoke_db.py`, `python scripts/smoke_http.py` (`--keep` оставит партию в БД).
 
-## Planned architecture (from docs/PLAN.md)
+## Planned architecture (from `corridor-go-plan` memory)
 
 Four backend layers, kept separable:
 
 1. **`game/`** — pure Python game core (board, move/wall legality, BFS check that a wall never fully blocks a player's path, win detection). No Flask, no DB dependency. This is the foundation and is built first (stage 1).
 2. **HTTP layer (Flask)** — pages, create game, join by room link/code, serve static.
 3. **Realtime layer (Flask-SocketIO)** — room join, receiving moves, validating via `game/`, broadcasting updated state to both players, disconnect/win notifications.
-4. **Data layer (PostgreSQL)** — game persistence via SQLAlchemy + Alembic migrations (or psycopg). Schema sketch (`games`, `moves` tables) is in `docs/PLAN.md`.
+4. **Data layer (PostgreSQL)** — game persistence via SQLAlchemy + Alembic migrations (or psycopg). Schema sketch (`games`, `moves` tables) is in the `corridor-go-plan` memory.
 
 Frontend: HTML + Canvas + vanilla JS (no React). The JS client holds a WebSocket, sends moves, receives state, redraws.
 
@@ -47,4 +47,4 @@ Frontend: HTML + Canvas + vanilla JS (no React). The JS client holds a WebSocket
 
 ## Build order
 
-Follow the 7 stages in `docs/PLAN.md`: (1) `game/` core + tests, (2) DB infra, (3) HTTP skeleton, (4) Canvas render, (5) realtime, (6) full online cycle (reconnect/disconnect/win), (7) deploy (gunicorn + eventlet/gevent, managed Postgres, env config via `DATABASE_URL`/`SECRET_KEY`).
+Follow the 7 stages in the `corridor-go-plan` memory: (1) `game/` core + tests, (2) DB infra, (3) HTTP skeleton, (4) Canvas render, (5) realtime, (6) full online cycle (reconnect/disconnect/win), (7) deploy (gunicorn + eventlet/gevent, managed Postgres, env config via `DATABASE_URL`/`SECRET_KEY`).
