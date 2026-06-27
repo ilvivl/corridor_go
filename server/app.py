@@ -68,6 +68,11 @@ def create_app(config: dict | None = None) -> Flask:
         if game is None:
             abort(404)
 
+        # Ленивый TTL (этап 6): протухшую партию помечаем abandoned ДО resolve_side —
+        # чтобы её не «активировал» заход второго игрока (resolve_side активирует лишь
+        # waiting). Владелец по токену из сессии всё равно увидит доску как «брошена».
+        rooms.maybe_expire(db, game)
+
         side = rooms.resolve_side(game, session, db)
         if side is None:
             # посторонний в заполненной партии — зрителей нет.

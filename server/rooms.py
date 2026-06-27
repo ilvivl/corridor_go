@@ -9,6 +9,7 @@
 ``SELECT ... FOR UPDATE`` (PLAN этап 5). Сейчас не реализуем.
 """
 import uuid
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -17,6 +18,11 @@ from game import (
     GameState, IllegalMove, action_from_json, action_to_json, apply, legal_moves,
 )
 from server.models import Game, Move
+
+# Ленивый TTL (этап 6): партию waiting/active старше этого срока при заходе на
+# страницу помечаем abandoned (без победителя). Тюнящаяся константа, без фоновых
+# процессов — важно для деплоя (этап 7).
+ABANDON_AFTER = timedelta(hours=24)
 
 
 class ActionRejected(Exception):
@@ -131,10 +137,10 @@ def commit_action(
 ) -> dict:
     """Единый код-путь записи хода (этап 5). Чистый — без Flask/сокетов.
 
-    Сервер — источник истины: блокируем строку партии ``SELECT ... FOR UPDATE``,
-    перевалидируем ход ядром ``game/`` против состояния из БД и атомарно фиксируем
-    новое состояние + запись в ``moves``. На любой отказ — ``ActionRejected(reason)``,
-    без записи. Возвращает свежий ``public_view`` (без токенов).
+    Сервер — источник истины: блокируем строку партии ``SELECT ... FOR UPDATE`` и
+    делегируем в ``apply_action``. Вызывающему, который уже держит залоченную строку
+    (realtime сам лочит её, чтобы под локом же резолвить сторону), доступен
+    ``apply_action`` напрямую — без повторного SELECT.
 
     Защита от гонок: второй одновременный ход ждёт на ``FOR UPDATE`` до коммита
     первого, затем видит уже перевёрнутый ``turn`` → ``not_your_turn``;
@@ -145,6 +151,20 @@ def commit_action(
     ).scalar_one_or_none()
     if game is None:
         raise ActionRejected("game_not_found")
+    return apply_action(db, game, side, action_json, expected_ply)
+
+
+def apply_action(
+    db: Session, game: Game, side: int, action_json: dict, expected_ply: int | None = None,
+) -> dict:
+    """Перевалидировать и атомарно зафиксировать ход на УЖЕ загруженной строке ``game``.
+
+    Предполагается, что вызывающий держит на строке блокировку ``FOR UPDATE`` (так
+    realtime читает строку один раз: и сторону под локом резолвит, и ход пишет). Ядром
+    ``game/`` перевалидируем ход против состояния из БД и атомарно фиксируем новое
+    состояние + запись в ``moves``. На любой отказ — ``ActionRejected(reason)``, без
+    записи. Возвращает свежий ``public_view`` (без токенов).
+    """
     if game.status != "active":
         raise ActionRejected("not_active")
 
@@ -175,3 +195,47 @@ def commit_action(
     db.commit()
     # expire_on_commit=False → поля game доступны без refresh.
     return public_view(game)
+
+
+def end_by_forfeit(db: Session, game_id, winner_side: int) -> dict | None:
+    """Завершить активную партию форфейтом: победа ``winner_side`` (этап 6).
+
+    Единый код-путь для resign и для дисконнект-таймаута. Зеркало ``commit_action``:
+    блокируем строку ``SELECT ... FOR UPDATE`` и фиксируем исход колонками
+    ``winner``/``status``. JSONB ``state`` НЕ трогаем (доска у клиента запрётся сама:
+    ``legal_hints`` при ``winner is not None`` отдаёт пустой список); ``Move`` НЕ пишем
+    (таблица ``moves`` — чистая история game-action).
+
+    Идемпотентно: если партия уже не ``active`` (другой таймер/resign/победный ход
+    зафиксировали исход первыми), возвращаем ``None`` и НЕ перетираем результат. Так
+    гонка watcher↔resign↔победный ход безопасна — первый под локом фиксирует, остальные
+    видят ``status != 'active'`` и выходят.
+    """
+    game = db.execute(
+        select(Game).where(Game.id == game_id).with_for_update()
+    ).scalar_one_or_none()
+    if game is None or game.status != "active":
+        return None
+    game.winner = winner_side
+    game.status = "finished"
+    db.commit()
+    return public_view(game)
+
+
+def maybe_expire(db: Session, game: Game) -> bool:
+    """Ленивый TTL (этап 6): протухшую ``waiting``/``active`` партию пометить ``abandoned``.
+
+    Вызывается из HTTP при открытии страницы партии — без фоновых процессов. ``winner``
+    НЕ выставляем: ``abandoned`` — аннулирование (никто не победил), в отличие от форфейта.
+    Возвращает ``True``, если статус сменился (партия зафиксирована брошенной).
+
+    ``updated_at`` — timezone-aware (``DateTime(timezone=True)``), сравниваем с
+    ``datetime.now(timezone.utc)``.
+    """
+    if game.status in ("waiting", "active") and (
+        datetime.now(timezone.utc) - game.updated_at > ABANDON_AFTER
+    ):
+        game.status = "abandoned"
+        db.commit()
+        return True
+    return False

@@ -73,6 +73,32 @@ input#invite { font-family: monospace; padding: 0.3rem; }
   font-size: 1.1rem;
 }
 
+/* --- присутствие соперника + сдаться (этап 6) --- */
+.presence-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0.25rem 0;
+}
+.presence { font-weight: 600; }
+.presence.online { color: var(--bp-legal); }
+.presence.offline { color: var(--bp-line); }
+.presence-note {
+  color: var(--bp-p2);
+  font-weight: 600;
+  margin: 0.25rem 0;
+}
+.resign {
+  font-size: 0.9rem;
+  padding: 0.3rem 0.8rem;
+  color: var(--bp-wall);
+  background: transparent;
+  border: 1px solid var(--bp-line);
+  border-radius: 0.4rem;
+}
+.resign:hover { border-color: var(--bp-wall); }
+
 /* --- доска --- */
 .board-wrap {
   display: flex;

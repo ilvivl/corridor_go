@@ -38,6 +38,16 @@
     </div>
 
     <p id="status-line" class="status">{{ status_ru.get(view.status, view.status) }}</p>
+
+    {# Присутствие соперника + кнопка сдаться (этап 6). board.js обновляет на сокете. #}
+    <div class="presence-row">
+      <span id="presence" class="presence" hidden></span>
+      <button id="resign-btn" type="button" class="resign"
+              {% if view.status != 'active' %}hidden{% endif %}>Сдаться</button>
+    </div>
+    {# Уведомление об авто-завершении с обратным отсчётом (скрыто до presence-offline). #}
+    <p id="presence-note" class="presence-note" hidden></p>
+
     {# Баннер победителя всегда в DOM (renderHud показывает/прячет на сокет-событии). #}
     <p id="winner-banner" class="winner-banner" {% if not view.winner %}hidden{% endif %}>
       {% if view.winner %}Победил игрок {{ view.winner }}!{% endif %}

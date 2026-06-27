@@ -6,9 +6,20 @@ HTTP. Партии чистит autouse-фикстура cleanup_games из conf
 """
 import uuid
 
+import pytest
+
+from server import realtime
 from server.db import SessionLocal
 from server.models import Game
 from server.realtime import socketio
+
+
+@pytest.fixture(autouse=True)
+def fast_grace(monkeypatch):
+    """Grace-таймеры → 0: watcher, спавнящийся на teardown-дисконнекте сокет-клиента,
+    завершится мгновенно и не задержит pytest ~30с."""
+    monkeypatch.setattr(realtime, "GRACE_NOTIFY_SECONDS", 0)
+    monkeypatch.setattr(realtime, "GRACE_FORFEIT_SECONDS", 0)
 
 
 def _create_game(client) -> str:
@@ -83,6 +94,44 @@ def test_winning_move_broadcasts_winner(app, client):
                       "action": {"type": "move", "to": [4, 8]}, "ply": 0})
     s = _last(sc2.get_received(), "state")
     assert s is not None and s["winner"] == 1 and s["status"] == "finished"
+
+
+def test_presence_on_join_shows_both_online(app, client):
+    game_id = _create_game(client)
+    sc1, sc2 = _two_joined(app, client, game_id)
+    # _two_joined уже сбросил полученное; дёрнем ещё join, чтобы прийти presence.
+    sc1.emit("join", {"game_id": game_id})
+    p = _last(sc1.get_received(), "presence")
+    assert p is not None and p["online"] == {"1": True, "2": True}
+    assert p["grace_seconds"] is None
+
+
+def test_resign_finishes_game_for_opponent(app, client):
+    game_id = _create_game(client)
+    sc1, sc2 = _two_joined(app, client, game_id)
+
+    sc1.emit("resign", {"game_id": game_id})  # P1 сдаётся → побеждает P2
+    r1, r2 = sc1.get_received(), sc2.get_received()
+
+    s1, s2 = _last(r1, "state"), _last(r2, "state")
+    assert s1 is not None and s1 == s2
+    assert s1["winner"] == 2 and s1["status"] == "finished"
+    # Доска заперта у обоих.
+    h1, h2 = _last(r1, "hints"), _last(r2, "hints")
+    assert h1["moves"] == [] and h2["moves"] == []
+
+
+def test_resign_before_active_rejected(app, client):
+    """Партия ещё waiting (P2 не зашёл) → resign отклоняется."""
+    game_id = _create_game(client)
+    sc1 = socketio.test_client(app, flask_test_client=client)
+    sc1.get_received()
+    sc1.emit("join", {"game_id": game_id})
+    sc1.get_received()
+
+    sc1.emit("resign", {"game_id": game_id})
+    rej = _last(sc1.get_received(), "rejected")
+    assert rej is not None and rej["reason"] == "not_active"
 
 
 def test_join_without_session_is_forbidden(app, client):
