@@ -16,38 +16,39 @@
 
     {# HUD: статичный фоллбэк на Jinja; canvas рисует JS поверх. #}
     <div class="hud">
-      <div class="player-badge side-1
+      <div id="badge-1" class="player-badge side-1
                   {% if view.turn == 1 and not view.winner %}turn-active{% endif %}">
         <span class="dot dot-1"></span>
         <span class="name">Игрок 1{% if my_side == 1 %} (вы){% endif %}</span>
-        <span class="walls">🧱 {{ view.walls_left['1'] }}</span>
+        <span id="walls-1" class="walls">🧱 {{ view.walls_left['1'] }}</span>
       </div>
-      <div class="turn-indicator">
+      <div id="turn-indicator" class="turn-indicator">
         {% if view.winner %}
           🏆 Победил игрок {{ view.winner }}
         {% else %}
           Ход игрока {{ view.turn }}
         {% endif %}
       </div>
-      <div class="player-badge side-2
+      <div id="badge-2" class="player-badge side-2
                   {% if view.turn == 2 and not view.winner %}turn-active{% endif %}">
-        <span class="walls">🧱 {{ view.walls_left['2'] }}</span>
+        <span id="walls-2" class="walls">🧱 {{ view.walls_left['2'] }}</span>
         <span class="name">Игрок 2{% if my_side == 2 %} (вы){% endif %}</span>
         <span class="dot dot-2"></span>
       </div>
     </div>
 
-    <p class="status">{{ status_ru.get(view.status, view.status) }}</p>
-    {% if view.winner %}
-      <p class="winner-banner">Победил игрок {{ view.winner }}!</p>
-    {% endif %}
+    <p id="status-line" class="status">{{ status_ru.get(view.status, view.status) }}</p>
+    {# Баннер победителя всегда в DOM (renderHud показывает/прячет на сокет-событии). #}
+    <p id="winner-banner" class="winner-banner" {% if not view.winner %}hidden{% endif %}>
+      {% if view.winner %}Победил игрок {{ view.winner }}!{% endif %}
+    </p>
 
     <div class="board-wrap">
       <canvas id="board"></canvas>
     </div>
 
     {% if view.status == 'waiting' %}
-      <section class="invite">
+      <section id="invite-section" class="invite">
         <h2>Пригласить соперника</h2>
         <p>Пришлите эту ссылку второму игроку:</p>
         <input id="invite" type="text" readonly value="{{ invite_url }}" size="48">
@@ -60,8 +61,10 @@
       </section>
     {% endif %}
 
-    {# Доставка состояния на клиент — единая инлайн-точка (шов под этап 5). #}
+    {# Доставка состояния на клиент — единая инлайн-точка. #}
     <script type="application/json" id="game-data">{{ client_state | tojson }}</script>
+    {# Завендоренный socket.io-client (без рантайм-зависимости от CDN). #}
+    <script src="{{ url_for('static', filename='socket.io.min.js') }}"></script>
     <script type="module" src="{{ url_for('static', filename='board.js') }}"></script>
 
     <noscript>

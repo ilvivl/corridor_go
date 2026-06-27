@@ -77,8 +77,9 @@ def create_app(config: dict | None = None) -> Flask:
         view = rooms.public_view(game)  # без токенов, источник истины для рендера
         client_state = {
             "view": view,                        # side-agnostic состояние доски
-            "hints": rooms.legal_hints(game, side),  # знает сторону, без токенов
+            "hints": rooms.legal_hints(game.state, side),  # знает сторону, без токенов
             "my_side": side,                     # 1|2 — ориентация доски на клиенте
+            "game_id": str(game.id),             # не секрет (он в URL); нужен для join/move
         }
         return render_template(
             "game.html",
@@ -88,5 +89,9 @@ def create_app(config: dict | None = None) -> Flask:
             invite_url=invite_url,
             client_state=client_state,
         )
+
+    # --- realtime (этап 5): WebSocket-транспорт ходов ---
+    from server import realtime
+    realtime.init_app(app)
 
     return app

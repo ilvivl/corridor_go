@@ -1,10 +1,11 @@
-// Canvas-рендер доски «Коридор» (этап 4). Без зависимостей, ES-модуль.
+// Canvas-рендер доски «Коридор» + realtime-клиент (этап 5). ES-модуль; сеть — socket.io.
 //
-// Слои разделены так, чтобы этап 5 воткнул сеть в ОДИН шов (`commitAction`):
+// Слои:
 //   1) геометрия (orientation-aware transform, поворот 180° для P1);
-//   2) render(state) — единая точка отрисовки (этап 5 вызовет её на сокет-событии);
+//   2) render(state) — единая точка отрисовки (зовётся на сокет-событии "state");
 //   3) HiDPI + resize;
-//   4) hover-хит-тест по hints (клик ход НЕ отправляет — пустой шов).
+//   4) hover-хит-тест по hints; клик → commitAction → emit "move";
+//   5) renderHud(view) — живой HUD; сеть: join/state/hints/rejected.
 //
 // Правил игры в JS нет (решение B1): легальность считает сервер, клиент рисует
 // то, что пришло в `hints`. Координаты ядра — канонические (col,row), 0..8;
@@ -13,22 +14,41 @@
 const SIZE = 9;        // клеток по стороне
 const SLOTS = 8;       // пазов под стену по стороне (между клетками)
 
-// --- входные данные (инлайн-JSON, шов под этап 5) ---
-const { view, hints, my_side } = JSON.parse(
-  document.getElementById("game-data").textContent,
-);
+// --- входные данные (инлайн-JSON для первого paint; дальше апдейты по сокету) ---
+const data = JSON.parse(document.getElementById("game-data").textContent);
+let view = data.view;     // обновляется на сокет-событии "state"
+let hints = data.hints;   // обновляется на сокет-событии "hints"
+const my_side = data.my_side;
+const game_id = data.game_id;
 
 // Эгоцентрик: своя пешка снизу, цель сверху. Дом P1 — канонический ряд 0 (верх),
 // поэтому его доску поворачиваем на 180°. P2 видит канонику как есть.
 const rotate180 = my_side === 1;
 
-// Множества легального для хит-теста (ключи — строки).
+// Блокировка ввода между отправкой хода и ответом сервера (state/hints/rejected).
+let inputLocked = false;
+
+// Множества легального для хит-теста (ключи — строки); пересобираются из hints.
 const legalMoveCells = new Set(); // "c,r"
 const legalWalls = new Set();     // "c,r,o"
-for (const m of hints.moves) {
-  if (m.type === "move") legalMoveCells.add(`${m.to[0]},${m.to[1]}`);
-  else if (m.type === "wall") legalWalls.add(`${m.c},${m.r},${m.o}`);
+function setHints(h) {
+  hints = h;
+  legalMoveCells.clear();
+  legalWalls.clear();
+  for (const m of h.moves) {
+    if (m.type === "move") legalMoveCells.add(`${m.to[0]},${m.to[1]}`);
+    else if (m.type === "wall") legalWalls.add(`${m.c},${m.r},${m.o}`);
+  }
 }
+setHints(hints);
+
+// Локализация статуса — зеркало status_ru из templates/game.html (для renderHud).
+const STATUS_RU = {
+  waiting: "ожидание соперника",
+  active: "идёт игра",
+  finished: "партия завершена",
+  abandoned: "партия брошена",
+};
 
 // --- палитра: единственный источник — CSS-переменные :root ---
 const css = getComputedStyle(document.documentElement);
@@ -220,6 +240,7 @@ function hitTest(px, py) {
 }
 
 canvas.addEventListener("mousemove", (e) => {
+  if (inputLocked) return;          // ход отправлен, ждём ответ сервера
   const next = hitTest(e.offsetX, e.offsetY);
   if (JSON.stringify(next) !== JSON.stringify(hover)) {
     hover = next;
@@ -234,8 +255,9 @@ canvas.addEventListener("mouseleave", () => {
   }
 });
 
-// Клик строит action и зовёт шов — но СЕТИ НЕТ (этап 5 подключит commitAction).
+// Клик строит action и отправляет по сокету (commitAction).
 canvas.addEventListener("click", (e) => {
+  if (inputLocked) return;
   const hit = hitTest(e.offsetX, e.offsetY);
   if (!hit) return;
   const action = hit.kind === "cell"
@@ -245,9 +267,48 @@ canvas.addEventListener("click", (e) => {
 });
 
 function commitAction(action) {
-  /* этап 5: отправить action по сокету и перерисовать на ответ сервера. */
-  void action;
+  // Отправляем ход и блокируем ввод до ответа сервера (hints/rejected снимут lock).
+  // ply из текущего view — stale-guard на сервере (rooms.commit_action).
+  inputLocked = true;
+  hover = null;
+  socket.emit("move", { game_id, action, ply: view.ply });
+  render();
 }
 
+// === 5. Живой HUD (обновляется на сокет-событии "state") ===========
+function renderHud(v) {
+  const finished = v.winner != null;
+  const turnEl = document.getElementById("turn-indicator");
+  if (turnEl) {
+    turnEl.textContent = finished
+      ? `🏆 Победил игрок ${v.winner}`
+      : `Ход игрока ${v.turn}`;
+  }
+  const w1 = document.getElementById("walls-1");
+  const w2 = document.getElementById("walls-2");
+  if (w1) w1.textContent = `🧱 ${v.walls_left["1"]}`;
+  if (w2) w2.textContent = `🧱 ${v.walls_left["2"]}`;
+  const b1 = document.getElementById("badge-1");
+  const b2 = document.getElementById("badge-2");
+  if (b1) b1.classList.toggle("turn-active", !finished && v.turn === 1);
+  if (b2) b2.classList.toggle("turn-active", !finished && v.turn === 2);
+  const banner = document.getElementById("winner-banner");
+  if (banner) {
+    banner.hidden = !finished;
+    if (finished) banner.textContent = `Победил игрок ${v.winner}!`;
+  }
+  const statusLine = document.getElementById("status-line");
+  if (statusLine) statusLine.textContent = STATUS_RU[v.status] || v.status;
+  const invite = document.getElementById("invite-section");
+  if (invite && v.status !== "waiting") invite.hidden = true;
+}
+
+// === 6. Сеть (Flask-SocketIO) ======================================
 window.addEventListener("resize", resizeCanvas);
 resizeCanvas();
+
+const socket = io();
+socket.emit("join", { game_id });                 // socket.io буферизует до connect
+socket.on("state", (v) => { view = v; renderHud(v); render(); });
+socket.on("hints", (h) => { setHints(h); inputLocked = false; render(); });
+socket.on("rejected", () => { inputLocked = false; render(); });

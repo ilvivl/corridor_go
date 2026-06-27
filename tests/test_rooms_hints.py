@@ -14,7 +14,7 @@ def test_initial_hints_for_side_on_turn():
     """Начальное состояние, side=1 (на ходу): 3 хода пешкой + стены."""
     with SessionLocal() as db:
         game = rooms.create_game(db)
-        hints = rooms.legal_hints(game, 1)
+        hints = rooms.legal_hints(game.state, 1)
 
     assert hints["your_turn"] is True
     moves = [m for m in hints["moves"] if m["type"] == "move"]
@@ -33,7 +33,7 @@ def test_no_hints_for_side_off_turn():
     """То же состояние, но side=2 (не на ходу) — пустой список."""
     with SessionLocal() as db:
         game = rooms.create_game(db)
-        hints = rooms.legal_hints(game, 2)
+        hints = rooms.legal_hints(game.state, 2)
 
     assert hints["your_turn"] is False
     assert hints["moves"] == []
@@ -45,7 +45,7 @@ def test_no_hints_when_finished():
         game = rooms.create_game(db)
         game.state = replace(GameState.initial(), winner=1).to_json()
         db.commit()
-        hints = rooms.legal_hints(game, 1)
+        hints = rooms.legal_hints(game.state, 1)
 
     assert hints["your_turn"] is False
     assert hints["moves"] == []

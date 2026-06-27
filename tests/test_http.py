@@ -102,8 +102,9 @@ def test_game_page_embeds_client_state(client):
     game_id = _create_game(client)
     data = _game_data(client.get(f"/game/{game_id}").get_data(as_text=True))
 
-    assert set(data) == {"view", "hints", "my_side"}
+    assert set(data) == {"view", "hints", "my_side", "game_id"}
     assert data["my_side"] == 1
+    assert data["game_id"] == game_id
     assert data["hints"]["your_turn"] is True
     assert any(m["type"] == "move" for m in data["hints"]["moves"])
 
